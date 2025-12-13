@@ -1,0 +1,171 @@
+gemini进度---编译出问题
+
+// pagefault_bpf.c
+#include "vmlinux.h"
+#include </home/ouyang/libbpf-bootstrap/libbpf/src/bpf_helpers.h>
+#include </home/ouyang/libbpf-bootstrap/libbpf/src/bpf_tracing.h>
+#include </home/ouyang/libbpf-bootstrap/libbpf/src/bpf_core_read.h>
+
+char LICENSE[] SEC("license") = "Dual BSD/GPL";
+
+// 定义回传给用户态的数据结构
+struct event {
+    int pid;
+    char comm[16];
+    char filename[32]; // 只截取文件名，全路径在内核态获取很难
+    unsigned long file_offset; // 文件的字节偏移量
+    unsigned long vaddr;       // 发生错误的虚拟地址
+};
+
+// 定义 Ring Buffer 用于高性能传输数据
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024);
+} rb SEC(".maps");
+
+// Hook 点：handle_mm_fault
+// Linux 6.1 GKI signature: 
+// vm_fault_t handle_mm_fault(struct vm_area_struct *vma, unsigned long address, ...);
+SEC("kprobe/handle_mm_fault")
+int BPF_KPROBE(handle_mm_fault, struct vm_area_struct *vma, unsigned long address)
+{
+    struct event *e;
+    struct file *fp;
+
+    // 1. 读取 vm_file 指针
+    // 如果为 NULL，说明是匿名内存（如堆栈、malloc内存），不是文件映射，跳过
+    fp = BPF_CORE_READ(vma, vm_file);
+    if (!fp) {
+        return 0; 
+    }
+
+    // 2. 申请 RingBuffer 空间
+    e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
+    if (!e) {
+        return 0;
+    }
+
+    // 3. 采集进程信息
+    u64 id = bpf_get_current_pid_tgid();
+    e->pid = id >> 32; // PID 在高 32 位
+    bpf_get_current_comm(&e->comm, sizeof(e->comm));
+
+    // 4. 采集文件名
+    // 路径链：vma->vm_file->f_path.dentry->d_name.name
+    struct dentry *dentry = BPF_CORE_READ(fp, f_path.dentry);
+    const unsigned char *name_ptr = BPF_CORE_READ(dentry, d_name.name);
+    bpf_probe_read_kernel_str(&e->filename, sizeof(e->filename), name_ptr);
+
+    // 5. 计算文件具体片段 (File Offset)
+    unsigned long vm_start = BPF_CORE_READ(vma, vm_start);
+    unsigned long vm_pgoff = BPF_CORE_READ(vma, vm_pgoff);
+    
+    // 计算公式：(虚拟地址 - VMA起始虚拟地址) + (VMA在文件中的页偏移 * 页大小)
+    // 假设 Page Size = 4096 (12 bits)
+    e->file_offset = (address - vm_start) + (vm_pgoff << 12);
+    e->vaddr = address;
+
+    // 6. 提交数据
+    bpf_ringbuf_submit(e, 0);
+    return 0;
+}
+
+
+
+
+________________________________________________________________________________________________________
+
+命令行：
+clang -g -O2 -target bpf -D__TARGET_ARCH_arm64 -I. -c pagefault.bpf.c -o pagefault.bpf.o
+bpftool gen skeleton pagefault.bpf.o > pagefault.skel.h
+
+__________________________________________________________________________________________________________
+
+// pagefault.c
+#include <stdio.h>
+#include <unistd.h>
+#include <signal.h>
+#include <string.h>
+#include <errno.h>
+#include </home/ouyang/libbpf-bootstrap/libbpf/src/libbpf.h>
+#include "pagefault.skel.h" // 编译时自动生成的头文件
+
+static int stop = 0;
+
+static void sig_int(int signo) {
+    stop = 1;
+}
+
+// 回调函数：处理 Ring Buffer 传来的数据
+static int handle_event(void *ctx, void *data, size_t data_sz) {
+    const struct event *e = data;
+    
+    printf("[PID: %-6d] [Comm: %-16s] Fault on File: %-20s (Offset: 0x%-10lx) VAddr: 0x%lx\n",
+           e->pid, e->comm, e->filename, e->file_offset, e->vaddr);
+    return 0;
+}
+
+int main(int argc, char **argv) {
+    struct pagefault_bpf *skel;
+    struct ring_buffer *rb = NULL;
+    int err;
+
+    // 处理 Ctrl+C 退出
+    signal(SIGINT, sig_int);
+
+    // 1. 打开 BPF 程序骨架
+    skel = pagefault_bpf__open();
+    if (!skel) {
+        fprintf(stderr, "Failed to open BPF skeleton\n");
+        return 1;
+    }
+
+    // 2. 加载并验证
+    err = pagefault_bpf__load(skel);
+    if (err) {
+        fprintf(stderr, "Failed to load BPF skeleton\n");
+        goto cleanup;
+    }
+
+    // 3. 挂载到内核函数 (Attach)
+    err = pagefault_bpf__attach(skel);
+    if (err) {
+        fprintf(stderr, "Failed to attach BPF skeleton\n");
+        goto cleanup;
+    }
+
+    // 4. 设置 Ring Buffer 轮询
+    rb = ring_buffer__new(bpf_map__fd(skel->maps.rb), handle_event, NULL, NULL);
+    if (!rb) {
+        err = -1;
+        fprintf(stderr, "Failed to create ring buffer\n");
+        goto cleanup;
+    }
+
+    printf("Successfully started! Monitoring Page Faults on Pixel 8...\n");
+    printf("Ctrl+C to stop.\n");
+
+    // 5. 循环读取
+    while (!stop) {
+        err = ring_buffer__poll(rb, 100 /* timeout ms */);
+        if (err == -EINTR) {
+            err = 0;
+            break;
+        }
+        if (err < 0) {
+            printf("Error polling perf buffer: %d\n", err);
+            break;
+        }
+    }
+
+cleanup:
+    ring_buffer__free(rb);
+    pagefault_bpf__destroy(skel);
+    return -err;
+}
+
+
+
+
+
+

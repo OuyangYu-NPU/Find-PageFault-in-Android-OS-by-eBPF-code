@@ -1,0 +1,22 @@
+编译eBPF程序步骤——三步走
+
+1. 第一步：编译内核态代码 (生成 .o 文件)
+首先，编译器需要把你的 C 语言内核代码 (pagefault.bpf.c) 编译成 BPF 字节码。
+前提：确保你的目录下已经有了 vmlinux.h (之前从手机里提取的) 和 pagefault.bpf.c。
+clang -g -O2 -target bpf -D__TARGET_ARCH_arm64 -I. -c pagefault.bpf.c -o pagefault.bpf.o
+
+记得改头文件：
+#include </home/ouyang/libbpf-bootstrap/libbpf/src/bpf_helpers.h>
+#include </home/ouyang/libbpf-bootstrap/libbpf/src/bpf_tracing.h>
+#include </home/ouyang/libbpf-bootstrap/libbpf/src/bpf_core_read.h>
+
+
+2. 第二步：生成骨架头文件 (生成 .skel.h) 
+这一步是 eBPF 开发的“魔法”。我们需要用 bpftool 读取刚才生成的 .o 文件，把它转换成一个 C 语言头文件。
+bpftool gen skeleton pagefault.bpf.o > pagefault.skel.h
+
+3. 第三步：编译用户态加载器 (生成可执行文件)
+现在，头文件有了，你终于可以编译 pagefault.c 了。
+注意：这一步是交叉编译，为了让它能在 Android (Pixel 8) 上运行，你需要使用 NDK 的 Clang。
+cd /home/ouyang/libbpf-bootstrap/examples/c && rm -f pagefault.bpf.o pagefault.skel.h pagefault_monitor && ./build_android.sh
+

@@ -1,0 +1,32 @@
+解决方案
+问题的根本原因是：libbpf 的核心功能（解析 BPF 对象文件、CO-RE 重定位）严重依赖 libelf 库。虽然 NDK 提供了基础的 C 库，但 NDK 并不包含 libelf。而且，我们不能简单地禁用它，否则编译出来的程序无法加载 BPF 代码。
+我通过以下步骤解决了这个问题:
+
+1. 下载并配置 elfutils-0.191 - 包含 libelf 库的源代码
+
+2. 修复编译兼容性问题:
+	禁用了国际化支持 (libintl) 来避免 Android 缺少的依赖
+	修改 eu-config.h 文件注释掉 #include <libintl.h>
+	为 Android 交叉编译 libelf:
+
+3. 创建了 build_libelf_android.sh 脚本
+	使用 Android NDK 的 clang 编译器编译所有 libelf 源文件
+	生成了静态库 libelf.a (286KB)
+	更新构建脚本:
+
+4. 在 build_android.sh 中添加 libelf 的头文件和库文件路径
+	添加 -D__poll_t=unsigned 来解决 Android NDK 兼容性问题
+	使用 BUILD_STATIC_ONLY=y 只编译静态库
+	修复用户态代码:
+
+5. 创建共享头文件 pagefault.h 定义 struct event
+在 BPF 和用户态代码中都包含这个头文件
+cd /home/ouyang/libbpf-bootstrap/examples/c && rm -f pagefault.bpf.o pagefault.skel.h pagefault_monitor && ./build_android.sh
+
+
+
+最终结果
+✅ 成功编译出 pagefault_monitor 二进制文件
+✅ 文件大小: 1.7MB (静态链接)
+✅ 架构: ARM aarch64 (Android ARM64)
+✅ 可以直接推送到 Android 设备运行

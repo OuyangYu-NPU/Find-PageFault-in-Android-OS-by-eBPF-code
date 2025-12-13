@@ -1,0 +1,22 @@
+获取 Pixel 8 的内核类型定义 (vmlinux.h)
+这是 CO-RE 的核心。我们需要从你的手机中提取内核数据结构定义。
+
+1. 进入linux系统（原生系统/虚拟机）
+以下所有的操作都最好在linux中进行
+sudo apt install clang llvm make gcc libelf-dev flex bison -y
+
+2. 下载需要的两个核心工具：adb 和 bpftool。
+	adb：sudo apt install android-tools-adb
+	bpftool：sudo apt install linux-tools-common linux-tools-generic    # 或者     sudo apt install bpftool
+
+3.  从 Pixel 8手机 提取二进制文件（目标文件：/sys/kernel/btf/vmlinux） 传输到 linux电脑。
+# 使用 adb shell 获取 root 权限并读取文件，重定向到电脑的当前目录
+adb shell "su -c 'cat /sys/kernel/btf/vmlinux'" > vmlinux_pixel8_binary
+
+4. 验证文件：查看文件大小，它通常在 4MB - 10MB 之间。
+ls -lh vmlinux_pixel8_binary
+
+5. 在linux电脑上将刚才拉下来的二进制文件转换为 C 语言头文件
+bpftool btf dump file vmlinux_pixel8_binary format c > vmlinux.h
+
+6. 现在你的目录下有了一个 vmlinux.h，文件很大，有几万行
