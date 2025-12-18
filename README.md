@@ -5,7 +5,7 @@
 - cd libbpf-bootstrap/examples/c
 
 2. 记得换源，推荐阿里云源，不然会很慢
-
+*
 deb http://mirrors.aliyun.com/ubuntu/ jammy main restricted universe multiverse
 
 deb http://mirrors.aliyun.com/ubuntu/ jammy-security main restricted universe multiverse
@@ -25,8 +25,7 @@ deb-src http://mirrors.aliyun.com/ubuntu/ jammy-updates main restricted universe
 deb-src http://mirrors.aliyun.com/ubuntu/ jammy-proposed main restricted universe multiverse
 
 deb-src http://mirrors.aliyun.com/ubuntu/ jammy-backports main restricted universe multiverse
-
-
+*
 
 
 
@@ -65,6 +64,7 @@ deb-src http://mirrors.aliyun.com/ubuntu/ jammy-backports main restricted univer
 # 三、编译eBPF程序步骤——三步走
 
 记得改pagefault.bpf.c的头文件地址：
+
     #include </home/ouyang/libbpf-bootstrap/libbpf/src/bpf_helpers.h>
     #include </home/ouyang/libbpf-bootstrap/libbpf/src/bpf_tracing.h>
     #include </home/ouyang/libbpf-bootstrap/libbpf/src/bpf_core_read.h>
@@ -114,7 +114,7 @@ deb-src http://mirrors.aliyun.com/ubuntu/ jammy-backports main restricted univer
 1. 检查是否已挂载
 - mount | grep debugfs
 2. 如果没有输出，执行挂载命令：
-mount -t debugfs debugfs /sys/kernel/debug
+- mount -t debugfs debugfs /sys/kernel/debug
 - chmod 755 /sys/kernel/debug
 
 第二步：将编译好的 eBPF 程序推送到 Pixel 8，并运行你的 eBPF 程序
@@ -122,6 +122,7 @@ mount -t debugfs debugfs /sys/kernel/debug
 - cd /data/local/tmp
 - chmod +x pagefault_monitor
 - ./pagefault_monitor
+
 
 
 
