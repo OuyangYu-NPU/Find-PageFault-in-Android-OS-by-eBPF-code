@@ -97,11 +97,11 @@ deb-src http://mirrors.aliyun.com/ubuntu/ jammy-backports main restricted univer
 
 3. 修复编译兼容性问题:
 
-** 禁用了国际化支持 (libintl) 来避免 Android 缺少的依赖
+* 禁用了国际化支持 (libintl) 来避免 Android 缺少的依赖
 
     - cd /home/ouyang/libbpf-bootstrap/examples/c/elfutils-0.191/lib && cp eu-config.h eu-config.h.bak && sed -i 's/#define ENABLE_NLS 1/#undef ENABLE_NLS/' eu-config.h && grep -A2 -B2 "ENABLE_NLS" eu-config.h | head -10
 
-** 修改 eu-config.h 文件注释掉 #include <libintl.h>
+* 修改 eu-config.h 文件注释掉 #include <libintl.h>
 
     - cd /home/ouyang/libbpf-bootstrap/examples/c/elfutils-0.191/libelf && /home/ouyang/android-toolchain/android-ndk-r26b/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang -fPIC -O2 -I. -I.. -I../lib -DHAVE_CONFIG_H -D_GNU_SOURCE -Wno-error -c elf_begin.c 2>&1 | head -20
 
@@ -144,6 +144,7 @@ deb-src http://mirrors.aliyun.com/ubuntu/ jammy-backports main restricted univer
 - cd /data/local/tmp
 - chmod +x pagefault_monitor
 - ./pagefault_monitor
+
 
 
 
