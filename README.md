@@ -87,6 +87,7 @@ deb-src http://mirrors.aliyun.com/ubuntu/ jammy-backports main restricted univer
 问题的根本原因是 libbpf 依赖 libelf 库,而 Android NDK 默认不提供这个库。我通过以下步骤解决了这个问题:
 
 1. 下载并配置 elfutils-0.191 - 包含 libelf 库的源代码
+
     - cd /home/ouyang/libbpf-bootstrap/examples/c && wget https://sourceware.org/elfutils/ftp/0.191/elfutils-0.191.tar.bz2
     - cd /home/ouyang/libbpf-bootstrap/examples/c && tar xf elfutils-0.191.tar.bz2
     - chmod +x /home/ouyang/libbpf-bootstrap/examples/c/build_libelf_simple.sh
@@ -94,12 +95,14 @@ deb-src http://mirrors.aliyun.com/ubuntu/ jammy-backports main restricted univer
     - cd /home/ouyang/libbpf-bootstrap/examples/c/elfutils-0.191 && ./configure --prefix=/tmp/elfutils-build --disable-libdebuginfod --disable-debuginfod 2>&1 | tail -10
     - chmod +x /home/ouyang/libbpf-bootstrap/examples/c/build_libelf_android.sh && cd /home/ouyang/libbpf-bootstrap/examples/c && ./build_libelf_android.sh 2>&1 | tail -50
 
-2. 修复编译兼容性问题:
+3. 修复编译兼容性问题:
 
 ** 禁用了国际化支持 (libintl) 来避免 Android 缺少的依赖
+
     - cd /home/ouyang/libbpf-bootstrap/examples/c/elfutils-0.191/lib && cp eu-config.h eu-config.h.bak && sed -i 's/#define ENABLE_NLS 1/#undef ENABLE_NLS/' eu-config.h && grep -A2 -B2 "ENABLE_NLS" eu-config.h | head -10
 
 ** 修改 eu-config.h 文件注释掉 #include <libintl.h>
+
     - cd /home/ouyang/libbpf-bootstrap/examples/c/elfutils-0.191/libelf && /home/ouyang/android-toolchain/android-ndk-r26b/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang -fPIC -O2 -I. -I.. -I../lib -DHAVE_CONFIG_H -D_GNU_SOURCE -Wno-error -c elf_begin.c 2>&1 | head -20
 
 
@@ -108,6 +111,7 @@ deb-src http://mirrors.aliyun.com/ubuntu/ jammy-backports main restricted univer
 * 创建了 build_libelf_android.sh 脚本
 * 使用 Android NDK 的 clang 编译器编译所有 libelf 源文件
 * 生成了静态库 libelf.a (286KB)
+    
     - cd /home/ouyang/libbpf-bootstrap/examples/c && rm -rf android_build/libelf_objs && ./build_libelf_android.sh 2>&1 | tail -10
     - cd /home/ouyang/libbpf-bootstrap/examples/c && ./build_android.sh 2>&1 | tee /tmp/build_log.txt | tail -50
 
@@ -121,6 +125,7 @@ deb-src http://mirrors.aliyun.com/ubuntu/ jammy-backports main restricted univer
 * 在 BPF 和用户态代码中都包含这个头文件
 
 6. 重新编译 BPF 代码和 skeleton:
+    
     - cd /home/ouyang/libbpf-bootstrap/examples/c && rm -f pagefault.bpf.o pagefault.skel.h pagefault_monitor && ./build_android.sh
 
 *** 如果实在搞不出来就用ai解决吧 ***
@@ -139,6 +144,7 @@ deb-src http://mirrors.aliyun.com/ubuntu/ jammy-backports main restricted univer
 - cd /data/local/tmp
 - chmod +x pagefault_monitor
 - ./pagefault_monitor
+
 
 
 
