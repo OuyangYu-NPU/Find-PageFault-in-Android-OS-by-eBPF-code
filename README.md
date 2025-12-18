@@ -5,7 +5,8 @@
 - cd libbpf-bootstrap/examples/c
 
 2. 记得换源，推荐阿里云源，不然会很慢
-*
+
+
 deb http://mirrors.aliyun.com/ubuntu/ jammy main restricted universe multiverse
 
 deb http://mirrors.aliyun.com/ubuntu/ jammy-security main restricted universe multiverse
@@ -25,9 +26,6 @@ deb-src http://mirrors.aliyun.com/ubuntu/ jammy-updates main restricted universe
 deb-src http://mirrors.aliyun.com/ubuntu/ jammy-proposed main restricted universe multiverse
 
 deb-src http://mirrors.aliyun.com/ubuntu/ jammy-backports main restricted universe multiverse
-*
-
-
 
 
 
@@ -122,6 +120,7 @@ deb-src http://mirrors.aliyun.com/ubuntu/ jammy-backports main restricted univer
 - cd /data/local/tmp
 - chmod +x pagefault_monitor
 - ./pagefault_monitor
+
 
 
 
